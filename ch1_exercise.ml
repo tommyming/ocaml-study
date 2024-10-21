@@ -5,6 +5,8 @@ arrays - maintain a list of (variable,integer) pairs, and produce new versions
 of this list at each AssignStm. 
 *)
 
+open Stdlib
+
 type variable = string
 type aexp = 
   | Num of int
