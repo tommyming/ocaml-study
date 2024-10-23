@@ -5,71 +5,51 @@ arrays - maintain a list of (variable,integer) pairs, and produce new versions
 of this list at each AssignStm. 
 *)
 
-open Stdlib
+type id = string
 
-type variable = string
-type aexp = 
-  | Num of int
-  | Var of variable
-  | Add of aexp * aexp
-  | Sub of aexp * aexp
-  | Mul of aexp * aexp
-
-type bexp =
-  | True
-  | False
-  | Eq of aexp * aexp
-  | Le of aexp * aexp
-  | Not of bexp
-  | And of bexp * bexp
+type exp = 
+  | IdExp of id
+  | NumExp of int
+  | OpExp of exp * exp
+  | BinOp of string
 
 type stm =
-  | AssignStm of variable * aexp
-  | SkipStm
   | CompoundStm of stm * stm
-  | IfStm of bexp * stm * stm
-  | WhileStm of bexp * stm
+  | AssignStm of id * exp
+  | PrintStm of exp list
 
-type environment = (variable * int) list
+type table = (id * int) list
 
-let rec lookup var env =
+let rec lookup (x: id) (env: table) : int =
   match env with
-  | [] -> 0  (* Default value if variable not found *)
-  | (v, value) :: rest -> if v = var then value else lookup var rest
+  | [] -> failwith ("Unbound variable: " ^ x)
+  | (y, v)::rest -> if x = y then v else lookup x rest
 
-let rec eval_aexp a env =
-  match a with
-  | Num n -> n
-  | Var x -> lookup x env
-  | Add (a1, a2) -> eval_aexp a1 env + eval_aexp a2 env
-  | Sub (a1, a2) -> eval_aexp a1 env - eval_aexp a2 env
-  | Mul (a1, a2) -> eval_aexp a1 env * eval_aexp a2 env
+let rec interp_exp (e: exp) (env: table) : int =
+  match e with
+  | NumExp n -> n
+  | IdExp x -> lookup x env
+  | OpExp(e1, e2) -> 
+      let v1 = interp_exp e1 env in
+      let v2 = interp_exp e2 env in
+      v1 + v2
+  | BinOp _ -> failwith "Binary operation not implemented"
 
-let rec eval_bexp b env =
-  match b with
-  | True -> true
-  | False -> false
-  | Eq (a1, a2) -> eval_aexp a1 env = eval_aexp a2 env
-  | Le (a1, a2) -> eval_aexp a1 env <= eval_aexp a2 env
-  | Not b1 -> not (eval_bexp b1 env)
-  | And (b1, b2) -> eval_bexp b1 env && eval_bexp b2 env
-
-let rec interp (s: stm) (env: environment) : environment =
+let rec interp_stm (s: stm) (env: table) : table =
   match s with
-  | AssignStm (x, a) ->
-      let value = eval_aexp a env in
-      (x, value) :: List.filter (fun (v, _) -> v <> x) env
-  | SkipStm -> env
-  | CompoundStm (s1, s2) ->
-      let env' = interp s1 env in
-      interp s2 env'
-  | IfStm (b, s1, s2) ->
-      if eval_bexp b env then interp s1 env else interp s2 env
-  | WhileStm (b, s) ->
-      if eval_bexp b env
-      then interp (CompoundStm (s, WhileStm (b, s))) env
-      else env
+  | CompoundStm(s1, s2) ->
+      let env' = interp_stm s1 env in
+      interp_stm s2 env'
+  | AssignStm(x, e) ->
+      let v = interp_exp e env in
+      (x, v)::env
+  | PrintStm exps ->
+      List.iter (fun e -> 
+        Printf.printf "%d " (interp_exp e env)
+      ) exps;
+      Printf.printf "\n";
+      env
 
-let run_program (s: stm) : unit =
-  let final_env = interp s [] in
-  List.iter (fun (var, value) -> Printf.printf "%s = %d\n" var value) final_env
+let interp (s: stm) : unit =
+  let _ = interp_stm s [] in
+  ()
